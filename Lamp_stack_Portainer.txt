@@ -88,7 +88,7 @@ volumes:
 #phpMyAdmin → http://your-server-ip:8081
 #User: admin
 #Password: Kode1234!
-#WordPress → http://your-server-ip:8082
+#WordPress → http://your-server-ip:80
 #Poste.io → http://your-server-ip:8083
 #Apache (PHP Webserver) → http://your-server-ip:8080
 
@@ -96,7 +96,7 @@ volumes:
 
 sudo firewall-cmd --add-port=8080/tcp --permanent
 sudo firewall-cmd --add-port=8081/tcp --permanent
-sudo firewall-cmd --add-port=8082/tcp --permanent
+sudo firewall-cmd --add-port=80/tcp --permanent
 sudo firewall-cmd --add-port=8083/tcp --permanent
 sudo firewall-cmd --add-port=3306/tcp --permanent
 sudo firewall-cmd --add-port=25/tcp --permanent
