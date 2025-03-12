@@ -56,7 +56,7 @@ services:
     volumes:
       - wordpress_data:/var/www/html
     ports:
-      - "8082:80"
+      - "80:80"
 
   # Poste.io Mail Server
   poste:
