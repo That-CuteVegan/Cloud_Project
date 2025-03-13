@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 
 #Script to Domain join a linux client/server to an active directory (AD) on a windows server.
 
