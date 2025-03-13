@@ -41,7 +41,7 @@ case "$New_Hostname" in
         echo "What do you wish your new hostname to be?"
         read new_hostname
         hostnamectl set-hostname $new_hostname
-        echo $IP_Address $new_hostname >> /etc/hosts
+        sudo echo $IP_Address $new_hostname >> /etc/hosts
         echo "$new_hostname have now been set as the new hostname."
         echo "Press enter to continue"
         read
@@ -70,7 +70,7 @@ echo "Time to specify the domain controller."
 echo "IPv4 format goes like 192.168.xxx.xxx."
 echo "What is the IPv4 address for the Active Directory Domain Controller:"
 read ADDC_IP
-echo $ADDC_IP $Hostname.grp1.local sbad >> /etc/hosts
+sudo echo $ADDC_IP $Hostname.grp1.local sbad >> /etc/hosts
 echo "Domain Controller IP have been recorded, wish to test connection to it?"
 echo "1 - YES"
 echo "2 - NO"
@@ -104,11 +104,11 @@ case "$Linux_Server" in
         echo "this means you have to specify your NTP server (time server),"
         echo "echo what is the IPv4 on your NTP server? (format 192.168.xxx.xxx)."
         read NTP_IP
-        sed -i 's/sourcedir /run/chrony-dhcp/$NTP_IP/' /etc/chrony.conf
+        sudo sed -i 's/sourcedir /run/chrony-dhcp/$NTP_IP/' /etc/chrony.conf
         echo "NTP server have been specified, enabling and resetting crony service to update it with the new IP."
-        systemctl enable chronyd
-        systemctl restart chronyd
-        systemctl enable chronyd
+        sudo systemctl enable chronyd
+        sudo systemctl restart chronyd
+        sudo systemctl enable chronyd
         echo "Chrony have been enabled and restartet and is ready to go."
         echo "Press Enter to continue"
         read
@@ -125,11 +125,11 @@ esac
 #Samba Share = SMB share protocol.
 #Winbind = Allows Linux to interact with AD as a windows machine.
 echo "Installing Samba suite (SMB share protocoll) and Winbind"
-dnf install samba samba-client samba-winbind samba-winbind-clients oddjob-mkhomedir -y
+sudo dnf install samba samba-client samba-winbind samba-winbind-clients oddjob-mkhomedir -y
 
 #Configuring Samba Realm and Workgroup
 echo "Configuring Samba Real and Workgroup to match Domain and workgroup for AD."
-sed -i '/workgroup = SAMBA/a\
+sudo sed -i '/workgroup = SAMBA/a\
 realm = grp1.local\
 workgroup = grp1
 ' /etc/samba/smb.conf
@@ -138,10 +138,10 @@ echo "Press enter to continue."
 read
 clear
 echo "Lets make sure it is correctlly configured before we continue."
-cat /etc/samba/smb.conf | grep realm
-cat /etc/samba/smb.conf | grep workgroup
-cat /etc/samba/smb.conf | grep security
-cat /etc/samba/smb.conf | grep winbind seperator
+sudo cat /etc/samba/smb.conf | grep realm
+sudo cat /etc/samba/smb.conf | grep workgroup
+sudo cat /etc/samba/smb.conf | grep security
+sudo cat /etc/samba/smb.conf | grep winbind seperator
 echo "Does the settings look correct? windbind seperator needs to be '+' and security needs to be 'ADS'."
 echo "Press Enter to contine if it looks fine or else use CTRL+C to stop script and manually configure"
 read
@@ -149,7 +149,7 @@ read
 #Enable winbind daemon
 clear
 echo "Time to enable the winbind daemon."
-systemctl enable winbind
+sudo systemctl enable winbind
 echo "winbind daemon is now online."
 echo "Press Enter to continue."
 read
@@ -157,13 +157,13 @@ read
 #Install Kerboros realms packege.
 clear
 echo "Now installing Kerboros realms package."
-sudo dnf install -y krb5-workstation
+sudo sudo dnf install -y krb5-workstation
 echo "Kerboros realms package have been installed."
 
 #Adds Linux client/server to Active Directory hosted on Windows server.
 clear
 echo "Adding Linux client/server to Active Directory."
-net ads join -U $Admin_Username $DOMAIN
+sudo net ads join -U $Admin_Username $DOMAIN
 echo "Linux client/server have been added to Active Directory."
 echo "Check the Active Directory Domain Controller to validate this, if it is not added continue the script by pressing Enter"
 echo "to figure out where the issue might be."
@@ -176,41 +176,41 @@ echo "then the script can be stopped with CTRL+C."
 echo "Is the winbind service running correctlly?"
 echo "To run the check press Enter."
 read
-systemctl status winbind
+sudo systemctl status winbind
 echo "If yes press Enter to continue."
 read
 echo ""
 echo "Does the RPC calls succeed or fail?"
 echo "To run the check press Enter."
 read
-wbinfo -t
+sudo wbinfo -t
 echo "If successful then press Enter to continue."
 read
 echo ""
 echo "Can you see the users of the Active Directory?"
 echo "To run the check press Enter."
 read
-wbinfo -u
+sudo wbinfo -u
 echo "If you are able to see the users press Enter to continue."
 read
 echo "Can you see the groups of the Active Directory?"
 echo "To run the check press Enter."
 read
-wbinfo -g
+sudo wbinfo -g
 echo "If you are able to see the groups the winbind service is working correctlly."
 echo "Press Enter to continue."
 read
 
 #Ensure winbind is selected as the authorization provider.
 echo "Now we ensures winbind is selected as the authorization provider."
-authselect select winbind --force
+sudo authselect select winbind --force
 echo "Now we have ensured winbind is selected as the authorization provider."
 
 #Ensures passwd and groups are using winbind.
 clear
 echo "Now we need to ensure passwd and groups in the nsswitch.conf file is using winbind to pull login informations from the AD."
-cat /etc/nsswitch.conf | grep passwd
-cat /etc/nsswitch.conf | grep group
+sudo cat /etc/nsswitch.conf | grep passwd
+sudo cat /etc/nsswitch.conf | grep group
 echo "Are both entries using winbind?"
 echo "If yes press Enter to continue, otherwise CTRL+C to end the script and manually configure."
 read
@@ -220,8 +220,8 @@ clear
 echo "Now on to test the Kerberos TGT system, for this you will need to know the 'Account Name' of a user in your AD."
 echo "What user do you wish to use? and make sure it is the full Account Name as listed in the Active Directory"
 read AD_USER
-kinit $AD_USER@$DOMAIN
-klist
+sudo kinit $AD_USER@$DOMAIN
+sudo klist
 echo "Do you recive any kinit errors?"
 echo "1 - YES"
 echo "2 - NO"
@@ -235,8 +235,8 @@ case "$Kinit_Error" in
         echo "Lets fix the krb5.conf to see if that might fix the error you are getting."
         echo "Press Enter to run the configuration of /etc/krb5.conf."
         read
-        sed -i "/\[realms\]/a$REALM" /etc/krb5.conf
-        sed -i "/\[domain_realm\]/a$DOMAIN_REALM" /etc/krb5.conf
+        sudo sed -i "/\[realms\]/a$REALM" /etc/krb5.conf
+        sudo sed -i "/\[domain_realm\]/a$DOMAIN_REALM" /etc/krb5.conf
         echo "krb5.conf file have now been configured."
         echo "Press Enter to continue"
         read
