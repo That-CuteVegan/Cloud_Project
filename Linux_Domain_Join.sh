@@ -36,7 +36,7 @@ echo "2 - NO"
 read New_Hostname
 case "$New_Hostname" in
     1)
-        $Old_Hostname=""
+        Old_Hostname=""
         echo "You have chosen: YES."
         echo "What do you wish your new hostname to be?"
         read new_hostname
