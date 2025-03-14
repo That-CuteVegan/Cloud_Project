@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 
 #Script to install Docker and boot Portainer within it with a webinterface.
 
