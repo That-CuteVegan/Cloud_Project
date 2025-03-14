@@ -11,6 +11,7 @@ NTP_IP=""
 AD_USER=""
 DOMAIN=""
 Kinit_Error=""
+Admin_Username=""
 
 echo "Domain Join script for Linux have been booted."
 echo "Press Enter to continue, or CTRL+C to stop the script."
@@ -18,7 +19,6 @@ read
 
 IP_Address=$(hostname -I | awk '{print $1}')
 Old_Hostname=$(hostname)
-Admin_Username=(getent passwd 0 | cut -d: -f1)
 
 #Asks user to specify their domain to be used in the script.
 echo "For Active Directory purposes what is the Domain used on the ADDC?"
@@ -26,6 +26,9 @@ echo "Example domain 'grp1.local'"
 read DOMAIN
 echo "$DOMAIN is the domain specified, using it in the script, press Enter to continue"
 read
+
+#Used to specify the Domain in uppercase letters
+DOMAIN_UPPER="${DOMAIN^^}"
 
 #To begin with we want to specify the host name for the machine to make sure you have the one you wishes to have in AD.
 clear
@@ -41,7 +44,7 @@ case "$New_Hostname" in
         echo "What do you wish your new hostname to be?"
         read new_hostname
         hostnamectl set-hostname $new_hostname
-        sudo echo $IP_Address $new_hostname >> /etc/hosts
+        echo "$IP_Address $new_hostname" | sudo tee -a /etc/hosts
         echo "$new_hostname have now been set as the new hostname."
         echo "Press enter to continue"
         read
@@ -55,13 +58,12 @@ case "$New_Hostname" in
     ;;
 esac
 
-result=""
 if [[ -n "$Old_Hostname" ]]; then
   Hostname="$Old_Hostname"
 elif [[ -n "$new_hostname" ]]; then
-  result="$new_hostname"
+  Hostname="$new_hostname"
 else
-  result="123"
+  Hostname="123"
 fi
 
 #Specify the IP for the AD domain controller and test connection.
@@ -70,7 +72,7 @@ echo "Time to specify the domain controller."
 echo "IPv4 format goes like 192.168.xxx.xxx."
 echo "What is the IPv4 address for the Active Directory Domain Controller:"
 read ADDC_IP
-sudo echo $ADDC_IP $Hostname.grp1.local sbad >> /etc/hosts
+sudo bash -c echo $ADDC_IP $Hostname.grp1.local sbad >> /etc/hosts
 echo "Domain Controller IP have been recorded, wish to test connection to it?"
 echo "1 - YES"
 echo "2 - NO"
@@ -94,7 +96,7 @@ esac
 
 #Checks if you are running the script on a server or client then asks you to specify the NTP servers IP if on a static IP server.
 clear
-echo "Is this script ran on a Linux server/client with static IP?"
+echo "Is this script ran on a Linux server/client with static IP? (NTP Server)"
 echo "1 - YES"
 echo "2 - NO"
 read Linux_Server
@@ -129,10 +131,19 @@ sudo dnf install samba samba-client samba-winbind samba-winbind-clients oddjob-m
 
 #Configuring Samba Realm and Workgroup
 echo "Configuring Samba Real and Workgroup to match Domain and workgroup for AD."
-sudo sed -i '/workgroup = SAMBA/a\
-realm = grp1.local\
-workgroup = grp1
-' /etc/samba/smb.conf
+sudo tee -a /etc/samba/smb.conf > /dev/null <<EOT
+[global]
+   security = ADS
+   realm = $DOMAIN_UPPER
+   workgroup = ${DOMAIN%%.*}
+   encrypt passwords = yes
+   winbind use default domain = yes
+   winbind offline logon = yes
+   idmap config * : backend = tdb
+   idmap config * : range = 10000-99999
+   template shell = /bin/bash
+EOT
+sudo systemctl restart smb winbind
 echo "Realm and Workgroup have now been updated."
 echo "Press enter to continue."
 read
@@ -162,8 +173,10 @@ echo "Kerboros realms package have been installed."
 
 #Adds Linux client/server to Active Directory hosted on Windows server.
 clear
+echo "What is the Active Directory Administator username? (windows server admin accunt)."
+read Admin_Username
 echo "Adding Linux client/server to Active Directory."
-sudo net ads join -U $Admin_Username $DOMAIN
+sudo net ads join -U $Admin_Username $DOMAIN_UPPER
 echo "Linux client/server have been added to Active Directory."
 echo "Check the Active Directory Domain Controller to validate this, if it is not added continue the script by pressing Enter"
 echo "to figure out where the issue might be."
@@ -209,10 +222,12 @@ echo "Now we have ensured winbind is selected as the authorization provider."
 #Ensures passwd and groups are using winbind.
 clear
 echo "Now we need to ensure passwd and groups in the nsswitch.conf file is using winbind to pull login informations from the AD."
-sudo cat /etc/nsswitch.conf | grep passwd
-sudo cat /etc/nsswitch.conf | grep group
-echo "Are both entries using winbind?"
-echo "If yes press Enter to continue, otherwise CTRL+C to end the script and manually configure."
+sudo sed -i 's/^passwd:.*$/passwd: files winbind/' /etc/nsswitch.conf
+sudo sed -i 's/^group:.*$/group: files winbind/' /etc/nsswitch.conf
+sudo sed -i 's/^shadow:.*$/shadow: files/' /etc/nsswitch.conf
+sudo systemctl restart winbind
+echo "Entries relyent on winbind have now been updated in nsswitch.conf."
+echo "Press Enter to continue, otherwise CTRL+C to end the script."
 read
 
 #Use kinit to get a Kerberos TGT and to see if any errors.
@@ -228,17 +243,33 @@ echo "2 - NO"
 read Kinit_Error
 case "$Kinit_Error" in
     1)
-        DOMAIN_UPPER="${DOMAIN^^}"
-        REALM="$DOMAIN = {\n	kdc = mykdc.$DOMAIN:88\n		admin_server = kerberos.example.com\n}"
-        DOMAIN_REALM=$DOMAIN = $DOMAIN_UPPER
         echo "You have chosen YES to reciving kinit errors, lets try and fix this."
         echo "Lets fix the krb5.conf to see if that might fix the error you are getting."
         echo "Press Enter to run the configuration of /etc/krb5.conf."
         read
-        sudo sed -i "/\[realms\]/a$REALM" /etc/krb5.conf
-        sudo sed -i "/\[domain_realm\]/a$DOMAIN_REALM" /etc/krb5.conf
+        sudo tee /etc/krb5.conf > /dev/null <<EOT
+        [libdefaults]
+            default_realm = $DOMAIN_UPPER
+            dns_lookup_realm = false
+            dns_lookup_kdc = true
+
+        [realms]
+            $DOMAIN_UPPER = {
+                kdc = $ADDC_IP
+                admin_server = $ADDC_IP
+            }
+
+        [domain_realm]
+            .$DOMAIN = $DOMAIN_UPPER
+            $DOMAIN = $DOMAIN_UPPER
+EOT
         echo "krb5.conf file have now been configured."
-        echo "Press Enter to continue"
+        echo "Lets run the test again to see if it worked."
+        echo "Press Enter to run the test."
+        read
+        kinit $AD_ADMIN@$DOMAIN
+        klist
+        echo "If it looks right now press Enter to continue, otherwise CRTL+C to stop the script and manually configure"
         read
     ;;
 
