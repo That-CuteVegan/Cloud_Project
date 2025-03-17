@@ -20,7 +20,7 @@ sudo systemctl enable docker
 #Allow users that are created on the Linux server to be able to access docker.
 sudo usermod -aG docker $USER 
 
-#Creates a docker volume
+#Creates a docker volume to use for portainer by the name "portainer_data".
 docker volume create portainer_data
 
 #Create a docker container to run Portainer on ports 9443 and 8000.
