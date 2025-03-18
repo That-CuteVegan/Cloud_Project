@@ -29,5 +29,5 @@ document.addEventListener("DOMContentLoaded", async function() {
 });
 
 function viewHotel(hotelId) {
-    window.location.href = `/hotel-details/?id=${hotelId}`;
+    window.location.href = `/hotel-detail/?id=${hotelId}`;
 }
